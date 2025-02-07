@@ -1,0 +1,12 @@
+Make a GUI
+    Make it render in real time as parameters adjust
+Merge Maps
+Get water data put into the STL
+    Make it a seperate overlapping model?
+Get different shapes (states first)
+
+
+
+Make it possible to input: cooridnates, shape, size_real_world, output_size
+
+create_topo(tuple)
