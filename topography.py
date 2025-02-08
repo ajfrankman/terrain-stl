@@ -14,160 +14,130 @@ import trimesh
 from scipy.ndimage import zoom
 
 
-def create_solid_terrain_stl_old(X, Y, Z, output_folder, base_thickness_mm=None):
+# def create_solid_terrain_stl(elevation_matrix: np.ndarray, output_folder: str, output_size : int = 200, base_thickness_mm: int = None, grid_dimensions: int = 500):
+#     """
+#     Create a watertight STL file for the terrain with a flat base, given X, Y, and Z coordinates.
+
+#     Parameters:
+#     - elevation_matrix: 2D array of elevation data.
+#     - output_folder: Path to save the STL file.
+#     - base_thickness_mm: Optional, thickness of the base in millimeters (STL units). If provided,
+#       adds the specified thickness below the minimum elevation to create a solid base.
+#     """
+#     X, Y, Z = mesh_elevation_data(elevation_matrix, size=output_size, z_height=25, grid_dimensions=grid_dimensions)
+#     # Determine the dimensions
+#     rows, cols = Z.shape
+
+#     # Add a flat base if base_thickness_mm is provided
+#     if base_thickness_mm is not None:
+#         base_z = Z.min() - base_thickness_mm
+#     else:
+#         base_z = 0
+
+#     # Create vertices for the top surface and base
+#     top_vertices = np.stack((X.flatten(), Y.flatten(), Z.flatten()), axis=-1)
+#     base_vertices = np.stack((X.flatten(), Y.flatten(), np.full_like(Z.flatten(), base_z)), axis=-1)
+
+#     # Combine all vertices
+#     vertices = np.vstack((top_vertices, base_vertices))
+
+#     # Prepare faces
+#     faces = []
+
+#     # Terrain surface faces
+#     for i in range(rows - 1):
+#         for j in range(cols - 1):
+#             v0 = i * cols + j
+#             v1 = v0 + 1
+#             v2 = v0 + cols
+#             v3 = v2 + 1
+
+#             faces.append([v0, v2, v1])
+#             faces.append([v1, v2, v3])
+
+#     # Side walls connecting the top surface to the base
+#     offset = rows * cols
+#     for i in range(rows - 1):
+#         for j in range(cols - 1):
+#             top_v0 = i * cols + j
+#             top_v1 = top_v0 + 1
+#             top_v2 = top_v0 + cols
+#             top_v3 = top_v2 + 1
+
+#             base_v0 = offset + top_v0
+#             base_v1 = offset + top_v1
+#             base_v2 = offset + top_v2
+#             base_v3 = offset + top_v3
+
+#             faces.extend([
+#                 [top_v0, base_v0, top_v1], [top_v1, base_v0, base_v1],
+#                 [top_v1, base_v1, top_v3], [top_v3, base_v1, base_v3],
+#                 [top_v3, base_v3, top_v2], [top_v2, base_v3, base_v2],
+#                 [top_v2, base_v2, top_v0], [top_v0, base_v2, base_v0]
+#             ])
+
+#     # Base faces
+#     for i in range(rows - 1):
+#         for j in range(cols - 1):
+#             v0 = offset + i * cols + j
+#             v1 = v0 + 1
+#             v2 = v0 + cols
+#             v3 = v2 + 1
+
+#             faces.append([v0, v1, v2])
+#             faces.append([v1, v3, v2])
+
+#     # Remove duplicate vertices and faces
+#     vertices, unique_faces = np.unique(vertices, axis=0, return_inverse=True)
+#     faces = unique_faces[np.array(faces).flatten()].reshape(-1, 3)
+
+#     # Create STL mesh
+#     terrain_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+#     for i, f in enumerate(faces):
+#         for j in range(3):
+#             terrain_mesh.vectors[i][j] = vertices[f[j], :]
+
+#     # Generate a timestamp
+#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+#     # Save STL file
+#     output_file = f'{output_folder}/{timestamp}.stl'
+#     terrain_mesh.save(output_file)
+
+
+def create_solid_terrain_stl(
+        elevation_matrix: np.ndarray, 
+        output_folder: str, 
+        output_size: int = 200, 
+        base_thickness_mm: int = None, 
+        grid_dimensions: int = 500,
+        z_height: int = 10):
     """
-    Create a watertight STL file for the terrain with a flat base.
+    Create a watertight STL file for the terrain with a solid base.
 
     Parameters:
-    - X, Y, Z: 2D arrays of coordinates and elevation data.
-    - output_file: Path to save the STL file.
-    - base_thickness_mm: Optional, thickness of the base in millimeters (STL units). If provided,
-      removes the current base below the minimum elevation and adds the specified thickness.
-    """
-    # Uniform scaling factor to fit within 200x200x200mm
-    scale_factor = 200 / max(X.max() - X.min(), Y.max() - Y.min(), Z.max() - Z.min())
-
-    # Scale X, Y, and Z
-    X = X * scale_factor
-    Y = Y * scale_factor
-    Z = Z * scale_factor
-
-    rows, cols = X.shape
-
-    # Add a flat base if base_thickness_mm is provided
-    if base_thickness_mm is not None:
-        base_z = Z.min() - base_thickness_mm
-    else:
-        base_z = 0
-
-    # Create vertices for the top surface and base
-    top_vertices = np.stack((X.flatten(), Y.flatten(), Z.flatten()), axis=-1)
-    base_vertices = np.stack((X.flatten(), Y.flatten(), np.full_like(Z.flatten(), base_z)), axis=-1)
-
-    # Combine all vertices
-    vertices = np.vstack((top_vertices, base_vertices))
-
-    # Prepare faces
-    faces = []
-
-    # Terrain surface faces
-    for i in range(rows - 1):
-        for j in range(cols - 1):
-            v0 = i * cols + j
-            v1 = v0 + 1
-            v2 = v0 + cols
-            v3 = v2 + 1
-
-            # Top surface triangles
-            faces.append([v0, v2, v1])
-            faces.append([v1, v2, v3])
-
-    # Side walls connecting the top surface to the base
-    offset = rows * cols
-    for i in range(rows - 1):
-        for j in range(cols - 1):
-            # Current vertices
-            top_v0 = i * cols + j
-            top_v1 = top_v0 + 1
-            top_v2 = top_v0 + cols
-            top_v3 = top_v2 + 1
-
-            # Corresponding base vertices
-            base_v0 = offset + top_v0
-            base_v1 = offset + top_v1
-            base_v2 = offset + top_v2
-            base_v3 = offset + top_v3
-
-            # Side wall triangles
-            faces.append([top_v0, base_v0, top_v1])
-            faces.append([top_v1, base_v0, base_v1])
-            faces.append([top_v1, base_v1, top_v3])
-            faces.append([top_v3, base_v1, base_v3])
-            faces.append([top_v3, base_v3, top_v2])
-            faces.append([top_v2, base_v3, base_v2])
-            faces.append([top_v2, base_v2, top_v0])
-            faces.append([top_v0, base_v2, base_v0])
-
-    # Base faces
-    for i in range(rows - 1):
-        for j in range(cols - 1):
-            v0 = offset + i * cols + j
-            v1 = v0 + 1
-            v2 = v0 + cols
-            v3 = v2 + 1
-
-            # Base triangles
-            faces.append([v0, v1, v2])
-            faces.append([v1, v3, v2])
-
-    # Remove duplicate vertices and faces
-    vertices, unique_faces = np.unique(vertices, axis=0, return_inverse=True)
-    faces = unique_faces[np.array(faces).flatten()].reshape(-1, 3)
-
-    # Create STL mesh
-    terrain_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
-    for i, f in enumerate(faces):
-        for j in range(3):
-            terrain_mesh.vectors[i][j] = vertices[f[j], :]
-
-    # Generate a timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Example usage to create a file name
-    output_file = f'{output_folder}_{timestamp}.stl'
-    terrain_mesh.save(output_file)
-
-
-def create_solid_terrain_stl(elevation_data, output_folder, size=200, base_thickness_mm=None, z_height=None):
-    """
-    Create a watertight STL file for the terrain with a flat base, given only Z dimension data.
-
-    Parameters:
-    - elevation_data: 2D array of elevation data (shape: [rows, cols]).
+    - elevation_matrix: 2D array of elevation data.
     - output_folder: Path to save the STL file.
-    - size: Desired size for the model (uniform scaling).
-    - base_thickness_mm: Optional, thickness of the base in millimeters (STL units). If provided,
-      removes the current base below the minimum elevation and adds the specified thickness.
-    - z_height: Optional, specific Z height for scaling. If not provided, defaults to 1/3 of the size.
+    - base_thickness_mm: Optional, thickness of the base in millimeters.
     """
 
-    # Downsize the elevation data to 
-
-    # Resize the elevation data
-    Z = zoom(elevation_data, (500 / elevation_data.shape[0], 500 / elevation_data.shape[1]))
-
-    # Determine the grid dimensions
+    # Generate the 3D mesh of the terrain
+    X, Y, Z = mesh_elevation_data(elevation_matrix, size=output_size, z_height=z_height, grid_dimensions=grid_dimensions)
     rows, cols = Z.shape
 
-    # Create X and Y coordinates based on indices
-    X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
+    # Set base height
+    base_z = (Z.min() - base_thickness_mm) if base_thickness_mm is not None else 0
 
-    # Uniform scaling factor for X and Y
-    xy_scale_factor = size / max(X.max() - X.min(), Y.max() - Y.min())
-    Z_scale_factor = (z_height if z_height is not None else size / 5) / (Z.max() - Z.min())
-
-    # Scale X, Y, and Z
-    X = X * xy_scale_factor
-    Y = Y * xy_scale_factor
-    Z = Z * Z_scale_factor
-
-    # Add a flat base if base_thickness_mm is provided
-    if base_thickness_mm is not None:
-        base_z = Z.min() - base_thickness_mm
-    else:
-        base_z = 0
-
-    # Create vertices for the top surface and base
+    # Flatten top and base vertices
     top_vertices = np.stack((X.flatten(), Y.flatten(), Z.flatten()), axis=-1)
     base_vertices = np.stack((X.flatten(), Y.flatten(), np.full_like(Z.flatten(), base_z)), axis=-1)
 
-    # Combine all vertices
+    # Combine vertices for the solid model
     vertices = np.vstack((top_vertices, base_vertices))
 
-    # Prepare faces
     faces = []
 
-    # Terrain surface faces
+    # Top Surface (Terrain)
     for i in range(rows - 1):
         for j in range(cols - 1):
             v0 = i * cols + j
@@ -178,8 +148,19 @@ def create_solid_terrain_stl(elevation_data, output_folder, size=200, base_thick
             faces.append([v0, v2, v1])
             faces.append([v1, v2, v3])
 
-    # Side walls connecting the top surface to the base
+    # Bottom Surface (Flat base) - Flip triangles to face outward
     offset = rows * cols
+    for i in range(rows - 1):
+        for j in range(cols - 1):
+            v0 = offset + i * cols + j
+            v1 = v0 + 1
+            v2 = v0 + cols
+            v3 = v2 + 1
+
+            faces.append([v0, v2, v1])  # Reverse order to face outward
+            faces.append([v1, v2, v3])
+
+    # Side walls (Connecting top to bottom)
     for i in range(rows - 1):
         for j in range(cols - 1):
             top_v0 = i * cols + j
@@ -192,53 +173,29 @@ def create_solid_terrain_stl(elevation_data, output_folder, size=200, base_thick
             base_v2 = offset + top_v2
             base_v3 = offset + top_v3
 
+            # Create walls as triangles (ensuring a sealed, manifold structure)
             faces.extend([
-                [top_v0, base_v0, top_v1], [top_v1, base_v0, base_v1],
-                [top_v1, base_v1, top_v3], [top_v3, base_v1, base_v3],
-                [top_v3, base_v3, top_v2], [top_v2, base_v3, base_v2],
-                [top_v2, base_v2, top_v0], [top_v0, base_v2, base_v0]
+                [top_v0, top_v2, base_v0], [base_v0, top_v2, base_v2],  # Side 1
+                [top_v1, top_v0, base_v1], [base_v1, top_v0, base_v0],  # Side 2
+                [top_v3, top_v1, base_v3], [base_v3, top_v1, base_v1],  # Side 3
+                [top_v2, top_v3, base_v2], [base_v2, top_v3, base_v3]   # Side 4
             ])
 
-    # Base faces
-    for i in range(rows - 1):
-        for j in range(cols - 1):
-            v0 = offset + i * cols + j
-            v1 = v0 + 1
-            v2 = v0 + cols
-            v3 = v2 + 1
+    # Convert faces to numpy array
+    faces = np.array(faces)
 
-            faces.append([v0, v1, v2])
-            faces.append([v1, v3, v2])
-
-    # Remove duplicate vertices and faces
-    vertices, unique_faces = np.unique(vertices, axis=0, return_inverse=True)
-    faces = unique_faces[np.array(faces).flatten()].reshape(-1, 3)
-
-    # Create STL mesh
+    # Create STL Mesh
     terrain_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
     for i, f in enumerate(faces):
         for j in range(3):
             terrain_mesh.vectors[i][j] = vertices[f[j], :]
 
-    # Generate a timestamp
+    # Save STL
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Save STL file
     output_file = f'{output_folder}/{timestamp}.stl'
     terrain_mesh.save(output_file)
 
 
-def select_sub_data_old(data, factor_x_left, factor_x_right, factor_y_top, factor_y_bottom):
-    # Each factor_*_**** variable is a number from 0-100.
-    # The number is used to make a line at a fraction of the max x or max y respectively. 
-    # x variables can be thought of longitudinal lines.
-    # y variables can be thought of latitudinal lines.
-    max_width, max_height = data.shape
-    y_top = int((factor_y_top/100)*max_height)
-    y_bottom = int((factor_y_bottom/100)*max_height)
-    x_left = int((factor_x_left/100)*max_width)
-    x_right = int((factor_x_right/100)*max_width)
-    return data[y_top:y_bottom, x_left:x_right]
 
 
 def select_sub_data(data: np.ndarray, coordinates: tuple[float, float], area_size: int):
@@ -268,15 +225,20 @@ def select_sub_data(data: np.ndarray, coordinates: tuple[float, float], area_siz
     return data[y_bottom:y_top, x_left:x_right]
 
 
-def preview_terrain(X, Y, Z):
+def preview_terrain(elevation_data: np.ndarray):
     """
     Preview the terrain model in 3D.
     Parameters:
     - X, Y, Z: 2D arrays of coordinates and elevation data.
     """
-    fig = plt.figure(figsize=(10, 8))
+    X, Y, Z = mesh_elevation_data(elevation_data, size=200)
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.plot_surface(X, Y, Z, cmap='terrain', edgecolor='none')
+    ax.set_box_aspect([1,1,1])
+    ax.set_xlim
+    ax.set_ylim
+    ax.set_zlim
     ax.set_title("3D Terrain Preview")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
@@ -619,7 +581,45 @@ def generate_stl_from_elevation_data(elevation_data, max_height_mm, output_size_
     mesh.export('elevation_model_with_base_and_walls.stl')
 
 
-def create_topo_stl(coordinates: tuple[float, float], area_size: int, output_size: int, shape: str = 'square') -> bool:
+def mesh_elevation_data(elevation_data, size=200, z_height=None, grid_dimensions=500):
+    """
+    Mesh the elevation data into X, Y, and Z coordinates.
+
+    Parameters:
+    - elevation_data: 2D array of elevation data.
+    - size: Size of the mesh in mm (default: 200).
+    - z_height: Height of the Z axis (default: None). Defaults to 1/8 of the size.
+    - grid_demensions: Optional, dimensions of the grid (rows, cols) (default: 500).
+
+    """
+    # Figure out defaults and overrides
+    z_height = z_height if z_height is not None else size / 8
+    e_shape = elevation_data.shape
+    if e_shape[0] < grid_dimensions or e_shape[1] < grid_dimensions:
+        print('Low quality matrix detected, using smaller grid dimensions. Matrix shape: ', e_shape)
+        grid_dimensions = e_shape[0] if e_shape[0] < e_shape[1] else e_shape[1]
+        
+    
+    # Resize the elevation data
+    Z = zoom(elevation_data, (grid_dimensions / elevation_data.shape[0], grid_dimensions / elevation_data.shape[1]))
+    # Determine the grid dimensions
+    rows, cols = Z.shape
+
+    # Create X and Y coordinates based on indices
+    X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
+
+    # Uniform scaling factor for X and Y
+    xy_scale_factor = size / max(X.max() - X.min(), Y.max() - Y.min())
+    Z_scale_factor = z_height / (Z.max() - Z.min())
+
+    # Scale X, Y, and Z
+    X = X * xy_scale_factor
+    Y = Y * xy_scale_factor
+    Z = Z * Z_scale_factor
+
+    return X, Y, Z
+
+def create_topo_stl(coordinates: tuple[float, float], area_size: int, output_size: int, shape: str = 'square', grid_dimensions: int = 500, z_height: int = 10) -> bool:
     """
     Create a topo based on the given parameters.
 
@@ -641,60 +641,13 @@ def create_topo_stl(coordinates: tuple[float, float], area_size: int, output_siz
     # elevation_matrix = gaussian_filter(elevation_matrix, sigma=2)    
     # # Trim the data to shape
     elevation_matrix = select_sub_data(elevation_matrix, coordinates, area_size)
-    elevation_matrix = resize(elevation_matrix, (500, 500))
+    elevation_matrix = resize(elevation_matrix, (grid_dimensions, grid_dimensions))
 
     # generate_stl_from_elevation_data(elevation_matrix, 50, 200, 3)
-    # create_solid_terrain_stl(elevation_data, output_folder, size=200, base_thickness_mm=None, z_height=None):
-    create_solid_terrain_stl(elevation_matrix, './STLS', size=100, base_thickness_mm=5)
+    
+    create_solid_terrain_stl(elevation_matrix, './STLS', output_size = output_size, base_thickness_mm=5, grid_dimensions=grid_dimensions, z_height = z_height)
+    # preview_terrain(elevation_matrix)
 
-
-coordinates = (44.63898065419271, -111.40156966219595)  # Example latitude and longitude
-area_size =20000 # 5000 meters (5 km)
-create_topo_stl(coordinates, area_size, 100)
-
-# import rasterio
-
-# with rasterio.open("terrain_data_13/USGS_13_n45w112_20241127.tif") as src:
-#     bounds = src.bounds
-#     print(f"Bounding Box: {bounds}")
-
-# # temp_elevation_matrix = get_dem_elevation_data('terrain_data_13/USGS_13_n44w111_20240325.tif')
-# # temp_elevation_matrix = get_dem_elevation_data('terrain_data_13/USGS_13_n44w112_20240701.tif')
-# # # temp_elevation_matrix = get_dem_elevation_data('terrain_data_13/USGS_13_n45w112_20241127.tif')
-# # # temp_elevation_matrix = get_dem_elevation_data('terrain_data_13/USGS_13_n45w111_20240325.tif')
-# # temp_elevation_matrix = resize(temp_elevation_matrix, (500, 500))
-# # temp_elevation_matrix = flip_data(temp_elevation_matrix)    
-
-# elevation_heat_plot(temp_elevation_matrix)
-
-# get_area_bounds(coordinates, area_size)
-
-# # Z is in meters. X and Y are variable depending on the data. This should
-# # be a multiplier to make X and Y have the same magnitude as Z.
-# XY_STRETCH = 30
-# # Used to make mountains visible
-# ELEVATION_MULTIPLIER = 1.5
-# dtm = "marsh_valley.tif"
-
-
-# elevation = select_sub_data(elevation, 61, 82, 34, 55)
-
-# elevation = resize(elevation, (500, 500))  # Resample to a smaller grid
-
-# # Create STL
-# rows, cols = elevation.shape
-# X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
-# X = X * XY_STRETCH
-# Y = Y * XY_STRETCH
-# # Scale Z (elevation) to fit the desired height
-# Z = elevation * ELEVATION_MULTIPLIER
-# Z = np.around(Z, decimals=3)  # Round to 3 decimal places to avoid precision issues
-
-
-# # Check and flip axes if needed
-# # Flip Y-axis to match input data orientation
-# Y = np.flipud(Y)
-
-
-# create_solid_terrain_stl(X, Y, Z, "terrain_model_fully_solid.stl", base_thickness_mm=5)
-# # preview_terrain(X,Y,Z)
+coordinates = (43.89001337376799, -111.27059206445063)  # Example latitude and longitude
+area_size = 10000 # 5000 meters (5 km)
+create_topo_stl(coordinates, area_size, 100, grid_dimensions=300, z_height=10)
