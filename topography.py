@@ -209,6 +209,10 @@ def select_sub_data(data: np.ndarray, coordinates: tuple[float, float], area_siz
     full_area_width = file_maxes['file_max_lon'] - file_maxes['file_min_lon'] + 1
     full_area_height = file_maxes['file_max_lat'] - file_maxes['file_min_lat'] + 1
 
+    print(file_maxes)
+    print(full_area_width, full_area_height)
+
+
     left_factor = abs(left_bound - file_maxes['file_min_lon'])/full_area_width
     right_factor = abs(right_bound - file_maxes['file_min_lon'])/full_area_width
     # Because the file_min_lat is at the top of the file, we need to subtract 1 
@@ -216,13 +220,20 @@ def select_sub_data(data: np.ndarray, coordinates: tuple[float, float], area_siz
     bottom_factor = abs(bottom_bound - (file_maxes['file_min_lat']-1))/full_area_height
     top_factor = abs(top_bound - (file_maxes['file_min_lat']-1))/full_area_height
 
-    max_width, max_height = data.shape
+    print(left_factor, right_factor, bottom_factor, top_factor)
+    print(data.shape)
+    max_height,max_width = data.shape
     y_top = int(top_factor*max_height)
     y_bottom = int(bottom_factor*max_height)
     x_left = int(left_factor*max_width)
     x_right = int(right_factor*max_width)
-
+    
+    print(y_top, y_bottom, x_left, x_right)
+    print(data.shape)
+    data[15990:16767, 5320:5589]
     return data[y_bottom:y_top, x_left:x_right]
+    # return data[y_top:y_bottom, x_left:x_right]
+    
 
 
 def preview_terrain(elevation_data: np.ndarray):
@@ -619,7 +630,7 @@ def mesh_elevation_data(elevation_data, size=200, z_height=None, grid_dimensions
 
     return X, Y, Z
 
-def create_topo_stl(coordinates: tuple[float, float], area_size: int, output_size: int, shape: str = 'square', grid_dimensions: int = 500, z_height: int = 10) -> bool:
+def create_topo_stl(coordinates: tuple[float, float], area_size: int, output_size: int, shape: str = 'square', grid_dimensions: int = 500, z_height: int = 10, base_thickness: int = 5) -> bool:
     """
     Create a topo based on the given parameters.
 
@@ -638,16 +649,74 @@ def create_topo_stl(coordinates: tuple[float, float], area_size: int, output_siz
         # Find the right files and merge the data
     elevation_matrix = get_full_elevation_matrix(data_directory, coordinates, area_size)
     # Filter the data (filter before selecting the sub area so there isn't weird smoothing on the edges.)
-    # elevation_matrix = gaussian_filter(elevation_matrix, sigma=2)    
+    # elevation_matrix = gaussian_filter(elevation_matrix, sigma=4)    
     # # Trim the data to shape
+
     elevation_matrix = select_sub_data(elevation_matrix, coordinates, area_size)
+    print(elevation_matrix.shape)
     elevation_matrix = resize(elevation_matrix, (grid_dimensions, grid_dimensions))
 
     # generate_stl_from_elevation_data(elevation_matrix, 50, 200, 3)
     
-    create_solid_terrain_stl(elevation_matrix, './STLS', output_size = output_size, base_thickness_mm=5, grid_dimensions=grid_dimensions, z_height = z_height)
+    create_solid_terrain_stl(elevation_matrix, './STLS', output_size = output_size, base_thickness_mm=base_thickness, grid_dimensions=grid_dimensions, z_height = z_height)
     # preview_terrain(elevation_matrix)
 
-coordinates = (43.89001337376799, -111.27059206445063)  # Example latitude and longitude
-area_size = 10000 # 5000 meters (5 km)
-create_topo_stl(coordinates, area_size, 100, grid_dimensions=300, z_height=10)
+coordinates = (43.74116848562412, -110.80252583636025)  # Example latitude and longitude
+area_size = 5000 # 5000 meters (5 km)
+create_topo_stl(coordinates, area_size, 100, grid_dimensions=300, z_height=30, base_thickness=2)
+
+# teton river coordinates = (43.89001337376799, -111.27059206445063)
+# teton river area_size = 10000
+# z_height = 10 
+# output_size = 100
+
+# badger creak coordinates: (43.90932022639387, -111.23728916231576)
+# badger creak area_size = 10000
+# z_height = 10
+# output_size = 100
+
+# twin peaks challis coordinates: (44.60579424729643, -114.46569823190565)
+# badger creak area_size = 20000
+# z_height = 15 
+# output_size = 100
+
+# Henry's Lake coordinates: (44.638290016134604, -111.40471637837479)
+# Henry's Lake area_size = 25000
+# z_height = 10
+# output_size = 100
+
+# Two Top Mountain coordinates: (44.62420886740847, -111.25918862878108)
+# Two Top Mountain area_size = 5000
+# z_height = 18
+# output_size = 100
+
+# Jefferson Mountains coordinates: (44.56379514243551, -111.50414403625872)
+# area_size = 12000
+# z_height = 13
+# sigma = 0
+# output_size = 100
+
+# Aldous Lake coordinates: (44.52161998171873, -111.84944582321471)
+# area_size = 1000
+# z_height = 20
+# sigma = 0
+# output_size = 100
+
+# YellowStone Canyon coordinates: (44.65130792742768, -110.77369848837489)
+# area_size = 1200
+# z_height = 15
+# sigma = 0
+# output_size = 100
+
+# Sawmill Creek coordinates: (44.31140122554627, -113.33934625265111)
+# area_size = 15000
+# z_height = 15
+# sigma = 0
+# output_size = 100
+
+# Upper Palisades coordinates: (43.427694445394586, -111.11233075816402)
+# area_size = 5000
+# z_height = 18
+# sigma = 0
+# output_size = 100
+
